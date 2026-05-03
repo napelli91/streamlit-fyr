@@ -79,3 +79,23 @@ tracker = Tracker(app_name="my_st_app", backend=backend)
 
 ## Same config as with SQLite
 ```
+
+## Identifying authenticated users
+
+If your app has authentication, call `tracker.identify()` after login resolves
+to attach a known identity to all subsequent events in the session:
+
+```python
+user = get_logged_in_user()  # your auth layer
+tracker.identify(user.id)
+```
+
+`identify()` stores the value in Streamlit session state and writes it to every
+event from that point forward alongside `visitor_id`. Events fired before
+`identify()` is called (e.g. the login page itself) will have `user_id = NULL`.
+
+> [!IMPORTANT]
+> **Privacy note:** `user_id` is stored as plain text in the `events` table.
+> Prefer an opaque internal ID over an email address or display name. If you do
+> store PII, ensure your database access controls and data retention policy
+> reflect that obligation.

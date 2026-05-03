@@ -1,5 +1,6 @@
 import pandas as pd
-from sqlalchemy import Column, Integer, Text, create_engine, event as sa_event, text
+from sqlalchemy import Column, Integer, Text
+from sqlalchemy import text
 from sqlalchemy.orm import DeclarativeBase, Session
 
 from .base import Backend
@@ -12,13 +13,14 @@ class Base(DeclarativeBase):
 class Event(Base):
     __tablename__ = "events"
 
-    id         = Column(Integer, primary_key=True, autoincrement=True)
-    timestamp  = Column(Text, nullable=False)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    timestamp = Column(Text, nullable=False)
     session_id = Column(Text, nullable=False)
     visitor_id = Column(Text)
-    app_name   = Column(Text, nullable=False)
-    page       = Column(Text)
-    event      = Column(Text, nullable=False)
+    user_id = Column(Text)
+    app_name = Column(Text, nullable=False)
+    page = Column(Text)
+    event = Column(Text, nullable=False)
     properties = Column(Text)
 
 

@@ -62,9 +62,7 @@ def _render(backend: Backend) -> None:
         filtered = filtered[filtered["app_name"].isin(selected_apps)]
     if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
         start, end = date_range
-        filtered = filtered[
-            (filtered["date"] >= start) & (filtered["date"] <= end)
-        ]
+        filtered = filtered[(filtered["date"] >= start) & (filtered["date"] <= end)]
 
     if filtered.empty:
         st.info("No data for the current filters.", icon=":material/info:")
@@ -78,14 +76,17 @@ def _render(backend: Backend) -> None:
     )
     avg_duration_sec = session_durations["duration_sec"].mean()
     avg_duration = (
-        f"{avg_duration_sec / 60:.1f} min" if avg_duration_sec >= 60
-        else f"{avg_duration_sec:.0f} s"
-    ) if not pd.isna(avg_duration_sec) else "—"
+        (
+            f"{avg_duration_sec / 60:.1f} min"
+            if avg_duration_sec >= 60
+            else f"{avg_duration_sec:.0f} s"
+        )
+        if not pd.isna(avg_duration_sec)
+        else "—"
+    )
 
     unique_visitors = (
-        filtered["visitor_id"].nunique()
-        if "visitor_id" in filtered.columns
-        else "—"
+        filtered["visitor_id"].nunique() if "visitor_id" in filtered.columns else "—"
     )
 
     m1, m2, m3, m4, m5, m6 = st.columns(6)
@@ -221,7 +222,15 @@ def _render(backend: Backend) -> None:
     with st.expander(":material/table_rows: Raw events", expanded=False):
         st.dataframe(
             filtered[
-                ["timestamp", "app_name", "visitor_id","page", "event", "session_id", "properties"]
+                [
+                    "timestamp",
+                    "app_name",
+                    "visitor_id",
+                    "page",
+                    "event",
+                    "session_id",
+                    "properties",
+                ]
             ]
             .sort_values("timestamp", ascending=False)
             .reset_index(drop=True),

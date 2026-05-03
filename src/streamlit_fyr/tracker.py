@@ -41,6 +41,18 @@ class Tracker:
         st.session_state["_current_page"] = page_name
         self._write("page_view", {"page": page_name})
 
+    def identify(self, user_id: str) -> None:
+        """Associate subsequent events with a known user identity.
+
+        Call after login resolves. The value is stored in session state and
+        attached to every event for the remainder of the session.
+
+        Args:
+            user_id: An opaque identifier from your auth layer (e.g. an internal
+                     user ID). Avoid raw email addresses — see README for guidance.
+        """
+        st.session_state["_user_id"] = user_id
+
     def event(self, name: str, properties: dict | None = None) -> None:
         """Track a custom interaction event.
 
@@ -80,6 +92,7 @@ class Tracker:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "session_id": st.session_state.get("session_id", None),
                 "visitor_id": st.session_state.get("visitor_id", None),
+                "user_id": st.session_state.get("_user_id", None),
                 "app_name": self.app_name,
                 "page": st.session_state.get("_current_page"),
                 "event": event,
