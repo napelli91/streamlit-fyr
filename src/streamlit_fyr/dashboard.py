@@ -1,7 +1,7 @@
+from typing import Callable
+
 import pandas as pd
 import streamlit as st
-
-from typing import Callable
 
 from .backends.base import Backend
 

@@ -7,41 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+## [0.2.0] — 2026-05-17
 
-- `__init__.py` now exports `SQLiteBackend`, `PostgresBackend`,
-  `make_dashboard_page`, and `__version__` at the top level.
-- Environment-variable fallbacks for both backends: `ST_FYR_SQLITE_FILE`
-  and `ST_FYR_CONNECTION_STRING`.
-- Optional install extras: `[dashboard]` (plotly) and `[postgres]` (psycopg).
-  Core install now ships only SQLAlchemy + pandas + Streamlit +
-  extra-streamlit-components.
-- PEP 561 `py.typed` marker — type hints are now visible to mypy / pyright in
+First public release. Pre-1.0 — public API may still change in minor versions.
+
+### Public API
+
+- `Tracker(app_name, backend)` with `init()`, `page()`, `event()`, `identify()`.
+- `SQLiteBackend(db_path=None)` — WAL mode on by default; falls back to the
+  `ST_FYR_SQLITE_FILE` env var, then to `telemetry.db`.
+- `PostgresBackend(connection_string=None)` — falls back to the
+  `ST_FYR_CONNECTION_STRING` env var; raises `ValueError` if neither is set.
+- `make_dashboard_page(backend)` — returns a zero-arg callable suitable for
+  `st.Page(...)`. Renders sessions over time, session-duration histogram, top
+  pages, top custom events, and a raw events table.
+- All four symbols are exported from the top-level `streamlit_fyr` package.
+
+### Packaging
+
+- Optional install extras: `streamlit-fyr[dashboard]` (plotly) and
+  `streamlit-fyr[postgres]` (psycopg). Core install ships only SQLAlchemy +
+  pandas + Streamlit + extra-streamlit-components.
+- PEP 561 `py.typed` marker — type hints are visible to mypy / pyright in
   consumer projects.
-- Strict `mypy` configuration and `pandas-stubs` dev dep.
-- `[project.urls]`, classifiers, keywords, and SPDX license metadata in
+- SPDX license metadata, `[project.urls]`, classifiers, and keywords in
   `pyproject.toml`.
-- GitHub issue forms (bug / feature) and pull request template.
 
-### Changed
+### Reliability
 
-- `Tracker._write` now swallows backend exceptions and logs via the
-  `streamlit_fyr` logger. Telemetry failures no longer break the host app.
-- `Tracker._write` drops events fired before `visitor_id` resolves (e.g. before
-  `init()` completes). `session_id` is now nullable to reflect this.
-- Cookie-load workaround in `Tracker._resolve_visitor_id` replaced the sticky
-  `_visitor_cookie_checked` flag with a render counter
-  (`_visitor_cookie_checks`, default 2 renders).
-- `PostgresBackend()` raises a clear `ValueError` when neither an argument nor
-  `ST_FYR_CONNECTION_STRING` is provided.
-- Type annotations tightened across the public API
-  (`dict[str, Any]`, `tuple[Any, ...]`, `Callable[[], None]`, `Engine`).
+- `Tracker._write` swallows backend exceptions and logs via the
+  `streamlit_fyr` logger — telemetry failures cannot break the host app.
+- Events fired before `visitor_id` resolves (e.g. before `init()` completes)
+  are dropped silently; `session_id` is nullable to reflect this.
+- Cookie-load handling in `Tracker._resolve_visitor_id` uses a render counter
+  (`_visitor_cookie_checks`, default 2 renders) so a returning visitor's cookie
+  is never overwritten by a freshly minted UUID.
 
-### Fixed
+### Developer experience
 
-- README typos and broken example code (`streamlity_fyr`, `tracker.track`,
-  `PostgresSQLBackend`, `with st.button(...)`).
-
-## [0.1.0] — unreleased
-
-Initial development. No public releases yet.
+- Strict `mypy` configuration and `pandas-stubs` dev dep.
+- GitHub Actions: `ci.yml` (pytest matrix 3.10–3.13, black, isort, mypy) and
+  `release.yml` (tag-driven build + GitHub Release + PyPI Trusted Publishing).
+- Issue forms (bug / feature) and pull request template.
