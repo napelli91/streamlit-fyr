@@ -1,8 +1,11 @@
 import json
+import logging
 from unittest.mock import patch
 
+import pandas as pd
 import pytest
 
+from streamlit_fyr.backends.base import Backend
 from streamlit_fyr.tracker import Tracker
 from tests.conftest import FakeSessionState, MockBackend
 
@@ -96,3 +99,29 @@ def test_event_without_properties_writes_empty_json(tracker):
     with patch("streamlit_fyr.tracker.st.session_state", session_state):
         t.event("something_happened")
     assert json.loads(backend.writes[0]["properties"]) == {}
+
+
+def test_event_before_init_does_not_write(mock_backend):
+    """Events fired before cookie resolves (no visitor_id) must be dropped silently."""
+    t = Tracker(app_name="test_app", backend=mock_backend)
+    empty_state = FakeSessionState()
+    with patch("streamlit_fyr.tracker.st.session_state", empty_state):
+        t.event("too_early")
+    assert mock_backend.writes == []
+
+
+class _RaisingBackend(Backend):
+    def write(self, event: dict) -> None:
+        raise RuntimeError("db is down")
+
+    def query(self, sql: str, params: tuple = ()) -> pd.DataFrame:
+        return pd.DataFrame()
+
+
+def test_write_swallows_backend_exceptions(session_state, caplog):
+    """A failing backend must never propagate into the host app."""
+    t = Tracker(app_name="test_app", backend=_RaisingBackend())
+    with patch("streamlit_fyr.tracker.st.session_state", session_state):
+        with caplog.at_level(logging.ERROR, logger="streamlit_fyr"):
+            t.event("anything")  # must not raise
+    assert any("failed to write event" in r.message for r in caplog.records)

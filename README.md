@@ -32,8 +32,8 @@ your db file.
 import streamlit as st
 
 from constants import DATA_PATH
-from streamlity_fyr.dashboard import make_dashboard_page
-from streamlity_fyr import SQLiteBackend, Tracker
+from streamlit_fyr.dashboard import make_dashboard_page
+from streamlit_fyr import SQLiteBackend, Tracker
 
 backend = SQLiteBackend("telemetry.db")
 tracker = Tracker(app_name="my_st_app", backend=backend)
@@ -44,10 +44,10 @@ def my_page() -> None:
     """Render a new page."""
     tracker.page("my_page")
     st.title("My streamlit Page!")
-    count=0
-    with st.button('click me!'):
-        tracker.track("button_pressed", {"press_count": count})
-        count+=1
+    count = 0
+    if st.button("click me!"):
+        tracker.event("button_pressed", {"press_count": count})
+        count += 1
 
 ...
 
@@ -66,15 +66,15 @@ pg.run()
 
 ### Postgres backend
 
-To enable the postgres backend you must change backed to the `PostgresSQLBackend`
-and add your DB connection string. Alternatively you can set the envrionmental
+To enable the postgres backend you must change backend to the `PostgresBackend`
+and add your DB connection string. Alternatively you can set the environment
 variable `ST_FYR_CONNECTION_STRING` to your connection string and the backend
 will read that value.
 
 ```python
-from streamlity_fyr import PostgresSQLBackend, Tracker
+from streamlit_fyr import PostgresBackend, Tracker
 
-backend = PostgresSQLBackend(connection_string="postgresql+psycopg://...")
+backend = PostgresBackend(connection_string="postgresql+psycopg://...")
 tracker = Tracker(app_name="my_st_app", backend=backend)
 
 ## Same config as with SQLite

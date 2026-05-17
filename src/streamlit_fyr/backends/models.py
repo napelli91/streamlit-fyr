@@ -1,5 +1,7 @@
 import pandas as pd
-from sqlalchemy import Column, Integer, Text, inspect as sa_inspect, text
+from sqlalchemy import Column, Integer, Text
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import text
 from sqlalchemy.orm import DeclarativeBase, Session
 
 from .base import Backend
@@ -14,7 +16,7 @@ class Event(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     timestamp = Column(Text, nullable=False)
-    session_id = Column(Text, nullable=False)
+    session_id = Column(Text)
     visitor_id = Column(Text)
     user_id = Column(Text)
     app_name = Column(Text, nullable=False)

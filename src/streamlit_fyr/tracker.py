@@ -1,4 +1,5 @@
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 
@@ -10,6 +11,9 @@ from .backends.base import Backend
 _COOKIE_KEY = "st_fyr_cookies"
 _VISITOR_COOKIE = "visitor_id"
 _COOKIE_EXPIRY = datetime(2030, 1, 1)
+_COOKIE_LOAD_RENDERS = 2
+
+_logger = logging.getLogger("streamlit_fyr")
 
 
 class Tracker:
@@ -66,10 +70,9 @@ class Tracker:
         """Resolve visitor_id from cookie into session_state.
 
         CookieManager is async — on the first render it returns None while
-        its iframe loads, then triggers a Streamlit rerun. We use a
-        _visitor_cookie_checked flag to distinguish "loading" (render 1) from
-        "confirmed absent" (render 2), so we never overwrite a returning
-        visitor's cookie before it has loaded.
+        its iframe loads, then triggers a Streamlit rerun. We count renders
+        with `_visitor_cookie_checks` so we wait long enough for a returning
+        visitor's cookie to load before minting a fresh UUID.
         """
         if "visitor_id" in st.session_state:
             return
@@ -79,23 +82,31 @@ class Tracker:
 
         if visitor_id is not None:
             st.session_state.visitor_id = visitor_id
-        elif "_visitor_cookie_checked" in st.session_state:
+            return
+
+        checks = st.session_state.get("_visitor_cookie_checks", 0)
+        if checks >= _COOKIE_LOAD_RENDERS:
             new_id = str(uuid.uuid4())
             cookie_manager.set(_VISITOR_COOKIE, new_id, expires_at=_COOKIE_EXPIRY)
             st.session_state.visitor_id = new_id
         else:
-            st.session_state._visitor_cookie_checked = True
+            st.session_state._visitor_cookie_checks = checks + 1
 
     def _write(self, event: str, properties: dict | None = None) -> None:
-        self.backend.write(
-            {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "session_id": st.session_state.get("session_id", None),
-                "visitor_id": st.session_state.get("visitor_id", None),
-                "user_id": st.session_state.get("_user_id", None),
-                "app_name": self.app_name,
-                "page": st.session_state.get("_current_page"),
-                "event": event,
-                "properties": json.dumps(properties or {}),
-            }
-        )
+        if "visitor_id" not in st.session_state:
+            return
+        try:
+            self.backend.write(
+                {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "session_id": st.session_state.get("session_id"),
+                    "visitor_id": st.session_state.get("visitor_id"),
+                    "user_id": st.session_state.get("_user_id"),
+                    "app_name": self.app_name,
+                    "page": st.session_state.get("_current_page"),
+                    "event": event,
+                    "properties": json.dumps(properties or {}),
+                }
+            )
+        except Exception:
+            _logger.exception("streamlit-fyr: failed to write event %r", event)

@@ -1,11 +1,16 @@
+import os
+
 from sqlalchemy import create_engine
 from sqlalchemy import event as sa_event
 
 from .models import SQLAlchemyBackend
 
+_DEFAULT_DB_PATH = "telemetry.db"
+
 
 class SQLiteBackend(SQLAlchemyBackend):
-    def __init__(self, db_path: str = "telemetry.db") -> None:
+    def __init__(self, db_path: str | None = None) -> None:
+        db_path = db_path or os.environ.get("ST_FYR_SQLITE_FILE", _DEFAULT_DB_PATH)
         engine = create_engine(
             f"sqlite:///{db_path}",
             connect_args={"check_same_thread": False},

@@ -1,4 +1,5 @@
 import sqlite3
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -36,8 +37,15 @@ def test_write_and_query_roundtrip(backend):
 def test_schema_has_all_columns(backend):
     df = backend.query("SELECT * FROM events LIMIT 0")
     expected = {
-        "id", "timestamp", "session_id", "visitor_id", "user_id",
-        "app_name", "page", "event", "properties",
+        "id",
+        "timestamp",
+        "session_id",
+        "visitor_id",
+        "user_id",
+        "app_name",
+        "page",
+        "event",
+        "properties",
     }
     assert expected.issubset(set(df.columns))
 
@@ -97,3 +105,28 @@ def test_wal_mode_enabled(tmp_path):
     with sqlite3.connect(db_path) as con:
         mode = con.execute("PRAGMA journal_mode").fetchone()[0]
     assert mode == "wal"
+
+
+def test_sqlite_env_var_fallback(tmp_path, monkeypatch):
+    db_path = tmp_path / "from_env.db"
+    monkeypatch.setenv("ST_FYR_SQLITE_FILE", str(db_path))
+    SQLiteBackend()
+    assert db_path.exists()
+
+
+def test_postgres_requires_connection_string(monkeypatch):
+    from streamlit_fyr.backends.postgres import PostgresBackend
+
+    monkeypatch.delenv("ST_FYR_CONNECTION_STRING", raising=False)
+    with pytest.raises(ValueError, match="ST_FYR_CONNECTION_STRING"):
+        PostgresBackend()
+
+
+def test_postgres_env_var_fallback(monkeypatch):
+    from streamlit_fyr.backends import postgres as pg_mod
+
+    monkeypatch.setenv("ST_FYR_CONNECTION_STRING", "postgresql://from-env/db")
+    with patch.object(pg_mod, "create_engine", return_value=MagicMock()) as mk:
+        with patch.object(pg_mod.SQLAlchemyBackend, "__init__", return_value=None):
+            pg_mod.PostgresBackend()
+    mk.assert_called_once_with("postgresql://from-env/db")
