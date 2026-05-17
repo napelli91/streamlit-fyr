@@ -1,0 +1,49 @@
+name: Feature request
+description: Suggest a new feature or enhancement for streamlit-fyr.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: |
+        Describe the use case in concrete terms — what are you trying to do that
+        the current API makes hard or impossible? Lead with the problem, not the
+        solution.
+      placeholder: |
+        e.g. "I want to query events by user_id without loading the whole table
+        into pandas, but Backend.query() only returns DataFrames."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What change to the API, schema, or docs would unblock you?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds, other libraries, etc. — and why they don't fit.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - Tracker / event API
+        - Backend / storage
+        - Dashboard
+        - Docs / tooling
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
