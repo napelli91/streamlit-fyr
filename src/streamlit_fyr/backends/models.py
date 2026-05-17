@@ -1,7 +1,10 @@
+from typing import Any
+
 import pandas as pd
 from sqlalchemy import Column, Integer, Text
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import text
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session
 
 from .base import Backend
@@ -26,7 +29,7 @@ class Event(Base):
 
 
 class SQLAlchemyBackend(Backend):
-    def __init__(self, engine) -> None:
+    def __init__(self, engine: Engine) -> None:
         self._engine = engine
         Base.metadata.create_all(self._engine)
         self._migrate()
@@ -39,11 +42,11 @@ class SQLAlchemyBackend(Backend):
                 con.execute(text("ALTER TABLE events ADD COLUMN user_id TEXT"))
                 con.commit()
 
-    def write(self, event: dict) -> None:
+    def write(self, event: dict[str, Any]) -> None:
         with Session(self._engine) as session:
             session.add(Event(**event))
             session.commit()
 
-    def query(self, sql: str, params: tuple = ()) -> pd.DataFrame:
+    def query(self, sql: str, params: tuple[Any, ...] = ()) -> pd.DataFrame:
         with self._engine.connect() as con:
             return pd.read_sql_query(text(sql), con, params=params)

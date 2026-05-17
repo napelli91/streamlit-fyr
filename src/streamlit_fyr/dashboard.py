@@ -1,13 +1,14 @@
 import pandas as pd
-import plotly.express as px
 import streamlit as st
+
+from typing import Callable
 
 from .backends.base import Backend
 
 _SYSTEM_EVENTS = {"page_view", "session_start"}
 
 
-def make_dashboard_page(backend: Backend):
+def make_dashboard_page(backend: Backend) -> Callable[[], None]:
     """Return a Streamlit-compatible page function bound to the given backend.
 
     Usage in app.py:
@@ -22,6 +23,14 @@ def make_dashboard_page(backend: Backend):
 
 
 def _render(backend: Backend) -> None:
+    try:
+        import plotly.express as px
+    except ImportError as e:
+        raise ImportError(
+            "make_dashboard_page requires plotly. "
+            "Install with: pip install 'streamlit-fyr[dashboard]'"
+        ) from e
+
     st.title(":material/analytics: Telemetry Dashboard")
 
     df = backend.query("SELECT * FROM events ORDER BY timestamp DESC")

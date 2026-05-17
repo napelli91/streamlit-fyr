@@ -1,4 +1,5 @@
 import os
+from typing import Any
 
 from sqlalchemy import create_engine
 from sqlalchemy import event as sa_event
@@ -17,7 +18,7 @@ class SQLiteBackend(SQLAlchemyBackend):
         )
 
         @sa_event.listens_for(engine, "connect")
-        def set_wal(dbapi_conn, _):
+        def set_wal(dbapi_conn: Any, _: Any) -> None:
             dbapi_conn.execute("PRAGMA journal_mode=WAL")
 
         super().__init__(engine)

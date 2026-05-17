@@ -2,6 +2,7 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 import streamlit as st
 from extra_streamlit_components import CookieManager
@@ -17,7 +18,7 @@ _logger = logging.getLogger("streamlit_fyr")
 
 
 class Tracker:
-    def __init__(self, app_name: str, backend: Backend):
+    def __init__(self, app_name: str, backend: Backend) -> None:
         self.app_name = app_name
         self.backend = backend
 
@@ -57,7 +58,7 @@ class Tracker:
         """
         st.session_state["_user_id"] = user_id
 
-    def event(self, name: str, properties: dict | None = None) -> None:
+    def event(self, name: str, properties: dict[str, Any] | None = None) -> None:
         """Track a custom interaction event.
 
         Args:
@@ -92,7 +93,7 @@ class Tracker:
         else:
             st.session_state._visitor_cookie_checks = checks + 1
 
-    def _write(self, event: str, properties: dict | None = None) -> None:
+    def _write(self, event: str, properties: dict[str, Any] | None = None) -> None:
         if "visitor_id" not in st.session_state:
             return
         try:
