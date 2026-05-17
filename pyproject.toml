@@ -3,8 +3,26 @@ name = "streamlit-fyr"
 version = "0.1.0"
 description = "Page analytics for Streamlit multi-app made easy!"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "Nahuel Pelli", email = "nahuelpelli91@gmail.com" }
+]
+keywords = ["streamlit", "analytics", "telemetry", "tracking", "dashboard"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Framework :: Streamlit",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
 ]
 requires-python = ">=3.10"
 dependencies = [
@@ -13,6 +31,12 @@ dependencies = [
     "sqlalchemy>=2.0",
     "streamlit>=1.57.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/napelli91/streamlit-fyr"
+Repository = "https://github.com/napelli91/streamlit-fyr"
+Issues = "https://github.com/napelli91/streamlit-fyr/issues"
+Changelog = "https://github.com/napelli91/streamlit-fyr/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 postgres = ["psycopg>=3.3.4"]
