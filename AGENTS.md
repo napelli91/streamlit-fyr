@@ -82,6 +82,11 @@ src/streamlit_fyr/
   access (e.g. `?analytics=1`); the library does not enforce this.
 - Backends accept env-var fallbacks: `ST_FYR_SQLITE_FILE` and `ST_FYR_CONNECTION_STRING`.
   `PostgresBackend()` raises `ValueError` if neither the argument nor the env var is set.
+- **Dependency layout:** `pandas` + `sqlalchemy` + `streamlit` + `extra-streamlit-components`
+  are core. `plotly` lives under the `[dashboard]` extra and is imported lazily inside
+  `dashboard._render` — `import streamlit_fyr` works without it. `psycopg` lives under
+  the `[postgres]` extra; SQLAlchemy only needs it at connect time, so importing
+  `PostgresBackend` works without it (only `__init__` would fail).
 
 ---
 

@@ -1,7 +1,7 @@
 [project]
 name = "streamlit-fyr"
 version = "0.1.0"
-description = "Add your description here"
+description = "Page analytics for Streamlit multi-app made easy!"
 readme = "README.md"
 authors = [
     { name = "Nahuel Pelli", email = "nahuelpelli91@gmail.com" }
@@ -10,11 +10,14 @@ requires-python = ">=3.10"
 dependencies = [
     "extra-streamlit-components>=0.1.81",
     "pandas>=2.0",
-    "plotly>=5.0",
-    "psycopg>=3.3.4",
     "sqlalchemy>=2.0",
     "streamlit>=1.57.0",
 ]
+
+[project.optional-dependencies]
+postgres = ["psycopg>=3.3.4"]
+dashboard = ["plotly>=5.0"]
+all = ["psycopg>=3.3.4", "plotly>=5.0"]
 
 [build-system]
 requires = ["uv_build>=0.11.8,<0.12.0"]
@@ -23,9 +26,27 @@ build-backend = "uv_build"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.mypy]
+files = ["src/streamlit_fyr"]
+python_version = "3.10"
+strict = true
+# Tests are looser: monkeypatching / fixtures pull mypy into pointless gymnastics.
+exclude = ["tests/"]
+
+[[tool.mypy.overrides]]
+module = [
+    "streamlit",
+    "streamlit.*",
+    "extra_streamlit_components",
+    "plotly.*",
+]
+ignore_missing_imports = true
+
 [dependency-groups]
 dev = [
     "black>=26.3.1",
     "isort>=8.0.1",
+    "mypy>=1.11",
+    "pandas-stubs>=2.0",
     "pytest>=9.0.3",
 ]

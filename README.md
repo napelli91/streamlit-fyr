@@ -19,6 +19,19 @@ Key features:
 - Multi-app centralization via `app_name` column. One DB for all your Streamlit apps
 - Bundled Plotly dashboard page (`make_dashboard_page`)
 
+## Installation
+
+```bash
+pip install streamlit-fyr               # core: Tracker + SQLiteBackend + raw query()
+pip install 'streamlit-fyr[dashboard]'  # adds plotly for make_dashboard_page
+pip install 'streamlit-fyr[postgres]'   # adds psycopg driver for PostgresBackend
+pip install 'streamlit-fyr[all]'        # everything
+```
+
+The core install only ships SQLAlchemy + pandas + Streamlit. `plotly` and `psycopg`
+are optional extras — install them only if you need the bundled dashboard or the
+Postgres backend.
+
 ## Basic Usage
 
 ### SQLite backend
