@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-07-15
+
+### Fixed
+
+- `Tracker.page()` persisted the top-level `page` column one navigation behind:
+  it wrote the previously-visited page (and `None` on a session's first page
+  view) because `_current_page` was updated after the write. `_current_page` is
+  now updated before the write, so the `page` column matches the page being
+  navigated to (and the `properties` blob). The page-change dedup guard from
+  0.3.0 is preserved — a `page_view` is still emitted only when the page
+  actually changes. (#15)
+
 ## [0.3.0] — 2026-07-15
 
 Schema provisioning is now explicit, the `events` table is indexed, and
