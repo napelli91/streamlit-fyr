@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-07-15
+
+Schema provisioning is now explicit, the `events` table is indexed, and
+`Backend.query` takes named parameters. Pre-1.0 — if you run Postgres, read the
+behavior-change note under Changed.
+
+### Added
+
+- `SQLAlchemyBackend.ensure_schema()` — idempotent schema provisioning
+  (`create_all` + `user_id` backfill + index creation). Run once at deploy time
+  with a privileged role.
+- `ensure_schema` constructor flag on backends: `SQLiteBackend(..., ensure_schema=True)`
+  (default — zero-config local/dev) and `PostgresBackend(..., ensure_schema=False)`
+  (default — production; apps do no DDL and can run as INSERT-only roles).
+- Indexes on the `events` table — `ix_events_app_name_timestamp` (composite,
+  primary dashboard filter), `ix_events_user_id`, `ix_events_visitor_id`.
+  Created via `ensure_schema()`, including on tables that predate them.
+
+### Changed
+
+- **Behavior change (Postgres).** `PostgresBackend` no longer runs DDL on every
+  construction. Provision the schema once with `backend.ensure_schema()` (a
+  DDL-capable role) before apps write, or pass `ensure_schema=True` to restore
+  the previous behavior. SQLite is unchanged (auto-provisions by default).
+- `Backend.query(sql, params)` now takes a named-parameter mapping
+  (`Mapping[str, Any] | None`) instead of a positional tuple.
+
+### Fixed
+
+- `Backend.query` with parameters now works. The previous `tuple[Any, ...]`
+  signature never worked with the `text()`-based implementation (it raised
+  `DatabaseError`); named-mapping parameters bind correctly.
+
 ## [0.2.0] — 2026-05-17
 
 First public release. Pre-1.0 — public API may still change in minor versions.
