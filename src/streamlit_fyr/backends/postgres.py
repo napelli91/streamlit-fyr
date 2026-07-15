@@ -13,6 +13,7 @@ class PostgresBackend(SQLAlchemyBackend):
         pool_size: int = 5,
         max_overflow: int = 5,
         pool_pre_ping: bool = True,
+        ensure_schema: bool = False,
         **engine_kwargs: Any,
     ) -> None:
         """Postgres-backed event store.
@@ -27,6 +28,11 @@ class PostgresBackend(SQLAlchemyBackend):
             pool_pre_ping: Test connections for liveness before use, so stale
                 connections (e.g. after a DB restart) are transparently
                 recycled instead of failing a write.
+            ensure_schema: Default False for production safety. Runtime apps
+                should use an INSERT-only role and do no DDL; provision the
+                schema once at deploy time with a privileged role by calling
+                ``ensure_schema()``. Set True only if the app's role is allowed
+                to run DDL and you want the table created on construction.
             **engine_kwargs: Extra keyword arguments forwarded to
                 ``create_engine`` (e.g. ``pool_recycle``, ``echo``).
 
@@ -52,4 +58,4 @@ class PostgresBackend(SQLAlchemyBackend):
             pool_pre_ping=pool_pre_ping,
             **engine_kwargs,
         )
-        super().__init__(engine)
+        super().__init__(engine, ensure_schema=ensure_schema)

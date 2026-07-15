@@ -43,7 +43,7 @@ src/streamlit_fyr/
 ├── tracker.py           # Tracker — public API: init(), page(), event(), identify()
 ├── dashboard.py         # make_dashboard_page(backend) factory
 └── backends/
-    ├── base.py          # Backend ABC: write(event), query(sql) -> DataFrame
+    ├── base.py          # Backend ABC: write(event), query(sql, params) -> DataFrame
     ├── models.py        # SQLAlchemy Base, Event ORM model, SQLAlchemyBackend base
     ├── sqlite.py        # SQLiteBackend — engine + WAL mode via connect event listener
     └── postgres.py      # PostgresBackend — engine with QueuePool
@@ -63,6 +63,30 @@ src/streamlit_fyr/
 | `event` | text | `session_start`, `page_view`, or any custom name |
 | `properties` | JSON text | optional dict passed to `tracker.event()` |
 
+Indexes (created by `ensure_schema()`): `ix_events_app_name_timestamp`
+(composite, primary dashboard filter), `ix_events_user_id`, `ix_events_visitor_id`.
+
+### Schema setup / `ensure_schema()`
+
+Schema provisioning is decoupled from backend construction (issue #9):
+
+- `SQLAlchemyBackend.ensure_schema()` is the single idempotent entry point:
+  `create_all` + `_migrate` (user_id backfill) + `_ensure_indexes`. Call it once
+  at deploy time with a privileged role.
+- `SQLAlchemyBackend.__init__(engine, ensure_schema: bool)` runs DDL only when
+  `ensure_schema=True`; when False it does **no** DDL/catalog work at all.
+- Subclass defaults: `SQLiteBackend(..., ensure_schema=True)` (zero-config
+  local), `PostgresBackend(..., ensure_schema=False)` (production; apps use
+  INSERT-only roles and do no DDL).
+- **Multi-app pattern:** provision once centrally with a privileged role via
+  `backend.ensure_schema()`; runtime apps get only INSERT and construct with the
+  default `ensure_schema=False`. This is a **behavior change** for Postgres
+  users — previously every construction ran `create_all` + migrate.
+- `create_all()` does **not** add indexes to a table that already exists, so
+  `_ensure_indexes()` iterates `Event.__table__.indexes` and calls
+  `index.create(bind=..., checkfirst=True)` — this covers both a fresh table and
+  a pre-existing (pre-0.3.0) table idempotently.
+
 ### Important implementation notes
 
 - `visitor_id` resolution uses `extra-streamlit-components` CookieManager and requires
@@ -77,6 +101,10 @@ src/streamlit_fyr/
   nullable for the same reason.
 - The `Backend` ABC + `SQLAlchemyBackend` base keep `Tracker` and `dashboard.py`
   storage-agnostic. A new backend only needs `write()` and `query()`.
+- `query(sql, params)` takes named bind parameters as a `Mapping[str, Any] | None`
+  (e.g. `{"app": "x"}` for `:app`). pandas' `read_sql_query` requires a mapping for
+  named params; a positional tuple raises. The old `tuple[Any, ...] = ()` signature
+  never actually worked, so the switch to a mapping is a latent-bug fix, not a break.
 - `make_dashboard_page(backend)` returns a zero-arg callable for `st.Page(...)` closing
   over the backend — avoids globals. The consumer app is responsible for gating dashboard
   access (e.g. `?analytics=1`); the library does not enforce this.
