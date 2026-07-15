@@ -43,7 +43,7 @@ src/streamlit_fyr/
 ├── tracker.py           # Tracker — public API: init(), page(), event(), identify()
 ├── dashboard.py         # make_dashboard_page(backend) factory
 └── backends/
-    ├── base.py          # Backend ABC: write(event), query(sql) -> DataFrame
+    ├── base.py          # Backend ABC: write(event), query(sql, params) -> DataFrame
     ├── models.py        # SQLAlchemy Base, Event ORM model, SQLAlchemyBackend base
     ├── sqlite.py        # SQLiteBackend — engine + WAL mode via connect event listener
     └── postgres.py      # PostgresBackend — engine with QueuePool
@@ -101,6 +101,10 @@ Schema provisioning is decoupled from backend construction (issue #9):
   nullable for the same reason.
 - The `Backend` ABC + `SQLAlchemyBackend` base keep `Tracker` and `dashboard.py`
   storage-agnostic. A new backend only needs `write()` and `query()`.
+- `query(sql, params)` takes named bind parameters as a `Mapping[str, Any] | None`
+  (e.g. `{"app": "x"}` for `:app`). pandas' `read_sql_query` requires a mapping for
+  named params; a positional tuple raises. The old `tuple[Any, ...] = ()` signature
+  never actually worked, so the switch to a mapping is a latent-bug fix, not a break.
 - `make_dashboard_page(backend)` returns a zero-arg callable for `st.Page(...)` closing
   over the backend — avoids globals. The consumer app is responsible for gating dashboard
   access (e.g. `?analytics=1`); the library does not enforce this.

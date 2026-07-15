@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Any
 
 import pandas as pd
@@ -99,6 +100,9 @@ class SQLAlchemyBackend(Backend):
             con.execute(insert(Event), event)
             con.commit()
 
-    def query(self, sql: str, params: tuple[Any, ...] = ()) -> pd.DataFrame:
+    def query(self, sql: str, params: Mapping[str, Any] | None = None) -> pd.DataFrame:
+        # pandas runs text() SQL via the DBAPI, which binds NAMED parameters
+        # from a mapping (e.g. {"app": "x"} for ":app"); a positional tuple
+        # raises. params=None means no bound parameters.
         with self._engine.connect() as con:
             return pd.read_sql_query(text(sql), con, params=params)

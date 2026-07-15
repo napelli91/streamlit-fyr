@@ -171,6 +171,42 @@ def test_ensure_indexes_idempotent(tmp_path):
     assert EXPECTED_INDEXES.issubset(indexes)
 
 
+# --- #3: query named params ---------------------------------------------------
+
+
+def test_query_with_named_params_matches(tmp_path):
+    backend = SQLiteBackend(str(tmp_path / "params.db"))
+    backend.write({**SAMPLE_EVENT, "app_name": "demo"})
+    backend.write({**SAMPLE_EVENT, "app_name": "other"})
+
+    df = backend.query("SELECT * FROM events WHERE app_name = :app", {"app": "demo"})
+    assert len(df) == 1
+    assert df.iloc[0]["app_name"] == "demo"
+
+
+def test_query_with_named_params_no_match(tmp_path):
+    backend = SQLiteBackend(str(tmp_path / "params2.db"))
+    backend.write({**SAMPLE_EVENT, "app_name": "demo"})
+
+    df = backend.query("SELECT * FROM events WHERE app_name = :app", {"app": "nope"})
+    assert len(df) == 0
+
+
+def test_query_without_params(tmp_path):
+    backend = SQLiteBackend(str(tmp_path / "noparams.db"))
+    backend.write(SAMPLE_EVENT)
+    df = backend.query("SELECT * FROM events")
+    assert len(df) == 1
+
+
+def test_query_positional_tuple_params_not_supported(tmp_path):
+    """The old tuple contract never worked with text() SQL; keep it unsupported."""
+    backend = SQLiteBackend(str(tmp_path / "tupleparams.db"))
+    backend.write({**SAMPLE_EVENT, "app_name": "demo"})
+    with pytest.raises(Exception):
+        backend.query("SELECT * FROM events WHERE app_name = :app", ("demo",))
+
+
 # --- #5 P0 regression: implicit_returning stays off after the tuple refactor ---
 
 
