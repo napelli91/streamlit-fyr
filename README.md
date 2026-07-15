@@ -93,6 +93,41 @@ tracker = Tracker(app_name="my_st_app", backend=backend)
 ## Same config as with SQLite
 ```
 
+> [!IMPORTANT]
+> **Cache the backend — do not construct it at module scope.** Streamlit
+> re-executes the entire script on every interaction (button click, slider
+> drag, etc.). `PostgresBackend(...)` calls `create_engine(...)`, which builds
+> a new connection pool. Constructing it at module scope therefore leaks a new
+> pool on every rerun and can quickly exhaust Postgres `max_connections`
+> (`FATAL: too many connections`) even though your actual insert volume is
+> tiny — and this multiplies across a multi-app deployment. Wrap construction
+> in `@st.cache_resource` so a single engine/pool is reused across reruns:
+>
+> ```python
+> import streamlit as st
+> from streamlit_fyr import PostgresBackend, Tracker
+>
+> @st.cache_resource
+> def get_backend():
+>     return PostgresBackend(connection_string="postgresql+psycopg://...")
+>
+> backend = get_backend()
+> tracker = Tracker(app_name="my_st_app", backend=backend)
+> ```
+
+`PostgresBackend` forwards connection-pool settings to SQLAlchemy with sane
+defaults (`pool_size=5`, `max_overflow=5`, `pool_pre_ping=True`); override them
+(or pass any other `create_engine` kwarg) if you need to tune the pool:
+
+```python
+PostgresBackend(
+    connection_string="postgresql+psycopg://...",
+    pool_size=10,
+    max_overflow=20,
+    pool_pre_ping=True,
+)
+```
+
 ## Identifying authenticated users
 
 If your app has authentication, call `tracker.identify()` after login resolves
