@@ -130,3 +130,38 @@ def test_postgres_env_var_fallback(monkeypatch):
         with patch.object(pg_mod.SQLAlchemyBackend, "__init__", return_value=None):
             pg_mod.PostgresBackend()
     mk.assert_called_once_with("postgresql://from-env/db")
+
+
+# --- Issue #5: write() must persist a row without relying on RETURNING id -----
+
+
+def test_write_persists_row_via_core_insert(backend):
+    """write() must actually persist a row (not just avoid raising)."""
+    backend.write(SAMPLE_EVENT)
+    count = backend.query("SELECT COUNT(*) AS n FROM events").iloc[0]["n"]
+    assert count == 1
+
+
+def test_write_does_not_return_pk(backend):
+    """write() returns None; it must not depend on the generated PK."""
+    result = backend.write(SAMPLE_EVENT)
+    assert result is None
+    # The row is still persisted even though nothing reads the id back.
+    df = backend.query("SELECT id FROM events")
+    assert len(df) == 1
+
+
+def test_write_emits_no_returning_for_postgres_dialect():
+    """The compiled Core INSERT must not append RETURNING (breaks INSERT-only roles)."""
+    from sqlalchemy import insert
+    from sqlalchemy.dialects import postgresql
+
+    from streamlit_fyr.backends.models import Event
+
+    # Compile with the columns the runtime write path actually supplies. Without
+    # implicit_returning=False on the model, the psycopg2 dialect appends a
+    # RETURNING clause for the autoincrement PK, which breaks INSERT-only roles.
+    compiled = insert(Event).compile(
+        dialect=postgresql.dialect(), column_keys=list(SAMPLE_EVENT)
+    )
+    assert "RETURNING" not in str(compiled).upper()
