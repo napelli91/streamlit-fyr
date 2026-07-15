@@ -168,6 +168,33 @@ def test_page_return_to_prior_page_emits_fresh_view(tracker):
     assert pages == ["Home", "Reports", "Home"]
 
 
+# --- Issue #15: page column matches the navigated-to page, not one behind -----
+
+
+def test_page_column_matches_navigated_page(tracker):
+    """The persisted top-level `page` column must equal the page being navigated
+    to (and match properties["page"]) for each page_view — not lag one step behind.
+
+    Pre-fix, _current_page was updated after _write, so the first page_view
+    persisted page=None and the second persisted page="overview".
+    """
+    t, backend, session_state = tracker
+    with patch("streamlit_fyr.tracker.st.session_state", session_state):
+        t.page("overview")
+        t.page("sales")
+
+    page_views = [w for w in backend.writes if w["event"] == "page_view"]
+    assert len(page_views) == 2
+
+    # Most visible symptom: the very first page view logged page=None.
+    assert page_views[0]["page"] == "overview"
+    assert page_views[1]["page"] == "sales"
+
+    # The top-level column must agree with the properties blob for every row.
+    for row in page_views:
+        assert row["page"] == json.loads(row["properties"])["page"]
+
+
 # --- Issue #8: on_write_error hook + no re-raise ------------------------------
 
 

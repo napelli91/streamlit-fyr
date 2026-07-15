@@ -67,9 +67,12 @@ class Tracker:
         # otherwise every widget interaction would re-log a spurious view.
         # Re-visiting a previously visited page changes _current_page again and
         # so emits a fresh page_view.
-        if st.session_state.get("_current_page") != page_name:
-            self._write("page_view", {"page": page_name})
+        # Update _current_page before writing so _write reads the new page for
+        # the top-level `page` column, not the one we're navigating away from.
+        changed = st.session_state.get("_current_page") != page_name
         st.session_state["_current_page"] = page_name
+        if changed:
+            self._write("page_view", {"page": page_name})
 
     def identify(self, user_id: str) -> None:
         """Associate subsequent events with a known user identity.

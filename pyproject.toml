@@ -1,6 +1,6 @@
 [project]
 name = "streamlit-fyr"
-version = "0.3.0"
+version = "0.3.1"
 description = "Page analytics for Streamlit multi-app made easy!"
 readme = "README.md"
 license = "MIT"
