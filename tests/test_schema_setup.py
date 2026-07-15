@@ -224,3 +224,10 @@ def test_insert_emits_no_returning_for_postgres_dialect():
     assert Event.__table__.implicit_returning is False
 
 
+# --- version ------------------------------------------------------------------
+
+
+def test_version_is_0_3_0():
+    import streamlit_fyr
+
+    assert streamlit_fyr.__version__ == "0.3.0"
