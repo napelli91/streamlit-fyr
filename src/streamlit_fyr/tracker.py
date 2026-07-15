@@ -2,7 +2,7 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable
 
 import streamlit as st
 from extra_streamlit_components import CookieManager
@@ -18,9 +18,28 @@ _logger = logging.getLogger("streamlit_fyr")
 
 
 class Tracker:
-    def __init__(self, app_name: str, backend: Backend) -> None:
+    def __init__(
+        self,
+        app_name: str,
+        backend: Backend,
+        on_write_error: Callable[[Exception], None] | None = None,
+    ) -> None:
+        """Create a tracker.
+
+        Args:
+            app_name: Value stored in the ``app_name`` column of every event.
+            backend: Storage backend implementing ``write``/``query``.
+            on_write_error: Optional callback invoked with the exception when a
+                backend write fails. Write failures are always swallowed so
+                telemetry can never break the host app (see AGENTS.md); this
+                hook exists so operators can surface/alert on failures without
+                the library re-raising. The callback must not raise — any
+                exception it raises is itself logged and suppressed.
+        """
         self.app_name = app_name
         self.backend = backend
+        self._on_write_error = on_write_error
+        self._write_error_logged = False
 
     def init(self) -> None:
         """Initialize session tracking. Call once in app.py before pg.run().
@@ -43,8 +62,14 @@ class Tracker:
         Args:
             page_name: Human-readable page identifier (e.g. "dashboard").
         """
+        # Streamlit reruns the script on every interaction, so emit a
+        # page_view only when the page actually changes within the session —
+        # otherwise every widget interaction would re-log a spurious view.
+        # Re-visiting a previously visited page changes _current_page again and
+        # so emits a fresh page_view.
+        if st.session_state.get("_current_page") != page_name:
+            self._write("page_view", {"page": page_name})
         st.session_state["_current_page"] = page_name
-        self._write("page_view", {"page": page_name})
 
     def identify(self, user_id: str) -> None:
         """Associate subsequent events with a known user identity.
@@ -109,5 +134,26 @@ class Tracker:
                     "properties": json.dumps(properties or {}),
                 }
             )
-        except Exception:
-            _logger.exception("streamlit-fyr: failed to write event %r", event)
+        except Exception as exc:
+            # By design we never let telemetry failures break the host app (see
+            # AGENTS.md). To avoid burying the problem — a broken backend can
+            # silently drop every event — we log a full warning on the first
+            # failure per process, then downgrade to debug so the logs aren't
+            # flooded. Consumers wanting a loud signal pass on_write_error.
+            if not self._write_error_logged:
+                self._write_error_logged = True
+                _logger.warning(
+                    "streamlit-fyr: failed to write event %r (further write "
+                    "errors logged at debug level)",
+                    event,
+                    exc_info=True,
+                )
+            else:
+                _logger.debug(
+                    "streamlit-fyr: failed to write event %r", event, exc_info=True
+                )
+            if self._on_write_error is not None:
+                try:
+                    self._on_write_error(exc)
+                except Exception:
+                    _logger.exception("streamlit-fyr: on_write_error callback raised")

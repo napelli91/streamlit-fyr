@@ -87,10 +87,36 @@ will read that value.
 ```python
 from streamlit_fyr import PostgresBackend, Tracker
 
-backend = PostgresBackend(connection_string="postgresql+psycopg://...")
+@st.cache_resource
+def get_backend():
+    return PostgresBackend(connection_string="postgresql+psycopg://...")
+
+backend = get_backend()
 tracker = Tracker(app_name="my_st_app", backend=backend)
 
 ## Same config as with SQLite
+```
+
+> [!IMPORTANT]
+> **Do not construct it at module scope.** Cache the backend using `@st.cache_resource`.
+> Streamlit re-executes the entire script on every interaction (button click, slider
+> drag, etc.). `PostgresBackend(...)` calls `create_engine(...)`, which builds
+> a new connection pool. Constructing it at module scope therefore leaks a new
+> pool on every rerun and can quickly exhaust Postgres `max_connections`
+> (`FATAL: too many connections`) even though your actual insert volume is
+> tiny.
+
+`PostgresBackend` forwards connection-pool settings to SQLAlchemy with sane
+defaults (`pool_size=5`, `max_overflow=5`, `pool_pre_ping=True`); override them
+(or pass any other `create_engine` kwarg) if you need to tune the pool:
+
+```python
+PostgresBackend(
+    connection_string="postgresql+psycopg://...",
+    pool_size=10,
+    max_overflow=20,
+    pool_pre_ping=True,
+)
 ```
 
 ## Identifying authenticated users
@@ -112,3 +138,25 @@ event from that point forward alongside `visitor_id`. Events fired before
 > Prefer an opaque internal ID over an email address or display name. If you do
 > store PII, ensure your database access controls and data retention policy
 > reflect that obligation.
+
+## Observing write failures
+
+By design, **telemetry failures never break the host app** — if a backend write
+fails, `Tracker` swallows the exception and continues. To avoid silently
+dropping events with no signal, the library logs a full warning on the first
+write failure per process (subsequent failures are logged at `debug`) via the
+`streamlit_fyr` logger.
+
+For a louder, actionable signal, pass an `on_write_error` callback. It is
+invoked with the exception whenever a write fails, so you can surface or alert
+on the failure without the library re-raising into your app:
+
+```python
+def alert(exc: Exception) -> None:
+    my_error_reporter.capture(exc)  # e.g. Sentry, a metric, a log
+
+tracker = Tracker(app_name="my_st_app", backend=backend, on_write_error=alert)
+```
+
+The callback must not raise; if it does, its exception is logged and suppressed
+so the guarantee that telemetry cannot break the host app still holds.

@@ -122,6 +122,98 @@ def test_write_swallows_backend_exceptions(session_state, caplog):
     """A failing backend must never propagate into the host app."""
     t = Tracker(app_name="test_app", backend=_RaisingBackend())
     with patch("streamlit_fyr.tracker.st.session_state", session_state):
-        with caplog.at_level(logging.ERROR, logger="streamlit_fyr"):
+        with caplog.at_level(logging.WARNING, logger="streamlit_fyr"):
             t.event("anything")  # must not raise
     assert any("failed to write event" in r.message for r in caplog.records)
+
+
+# --- Issue #6: page() de-duplicates page_view across reruns -------------------
+
+
+def test_page_repeated_same_page_emits_single_view(tracker):
+    """Reruns of the same page (widget interactions) must not re-log page_view."""
+    t, backend, session_state = tracker
+    with patch("streamlit_fyr.tracker.st.session_state", session_state):
+        t.page("Home")
+        t.page("Home")
+        t.page("Home")
+    page_views = [w for w in backend.writes if w["event"] == "page_view"]
+    assert len(page_views) == 1
+    assert json.loads(page_views[0]["properties"])["page"] == "Home"
+
+
+def test_page_switch_emits_new_view(tracker):
+    """Navigating to a different page emits a fresh page_view."""
+    t, backend, session_state = tracker
+    with patch("streamlit_fyr.tracker.st.session_state", session_state):
+        t.page("Home")
+        t.page("Reports")
+    page_views = [w for w in backend.writes if w["event"] == "page_view"]
+    assert len(page_views) == 2
+    assert json.loads(page_views[1]["properties"])["page"] == "Reports"
+
+
+def test_page_return_to_prior_page_emits_fresh_view(tracker):
+    """Home -> Reports -> Home yields three page_views (return counts as a visit)."""
+    t, backend, session_state = tracker
+    with patch("streamlit_fyr.tracker.st.session_state", session_state):
+        t.page("Home")
+        t.page("Reports")
+        t.page("Home")
+    pages = [
+        json.loads(w["properties"])["page"]
+        for w in backend.writes
+        if w["event"] == "page_view"
+    ]
+    assert pages == ["Home", "Reports", "Home"]
+
+
+# --- Issue #8: on_write_error hook + no re-raise ------------------------------
+
+
+def test_default_tracker_does_not_raise_on_write_failure(session_state):
+    t = Tracker(app_name="test_app", backend=_RaisingBackend())
+    with patch("streamlit_fyr.tracker.st.session_state", session_state):
+        t.event("anything")  # must not raise
+
+
+def test_on_write_error_callback_receives_exception(session_state):
+    received: list[Exception] = []
+    t = Tracker(
+        app_name="test_app",
+        backend=_RaisingBackend(),
+        on_write_error=received.append,
+    )
+    with patch("streamlit_fyr.tracker.st.session_state", session_state):
+        t.event("anything")
+    assert len(received) == 1
+    assert isinstance(received[0], RuntimeError)
+    assert "db is down" in str(received[0])
+
+
+def test_on_write_error_callback_that_raises_is_suppressed(session_state, caplog):
+    def bad_callback(exc: Exception) -> None:
+        raise ValueError("callback blew up")
+
+    t = Tracker(
+        app_name="test_app",
+        backend=_RaisingBackend(),
+        on_write_error=bad_callback,
+    )
+    with patch("streamlit_fyr.tracker.st.session_state", session_state):
+        with caplog.at_level(logging.ERROR, logger="streamlit_fyr"):
+            t.event("anything")  # must not raise despite callback raising
+    assert any("on_write_error callback raised" in r.message for r in caplog.records)
+
+
+def test_first_write_error_warning_then_debug(session_state, caplog):
+    """First failure logs at WARNING; subsequent failures downgrade to DEBUG."""
+    t = Tracker(app_name="test_app", backend=_RaisingBackend())
+    with patch("streamlit_fyr.tracker.st.session_state", session_state):
+        with caplog.at_level(logging.DEBUG, logger="streamlit_fyr"):
+            t.event("first")
+            t.event("second")
+    failures = [r for r in caplog.records if "failed to write event" in r.message]
+    assert len(failures) == 2
+    assert failures[0].levelno == logging.WARNING
+    assert failures[1].levelno == logging.DEBUG

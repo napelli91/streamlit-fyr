@@ -129,4 +129,102 @@ def test_postgres_env_var_fallback(monkeypatch):
     with patch.object(pg_mod, "create_engine", return_value=MagicMock()) as mk:
         with patch.object(pg_mod.SQLAlchemyBackend, "__init__", return_value=None):
             pg_mod.PostgresBackend()
-    mk.assert_called_once_with("postgresql://from-env/db")
+    mk.assert_called_once_with(
+        "postgresql://from-env/db",
+        pool_size=5,
+        max_overflow=5,
+        pool_pre_ping=True,
+    )
+
+
+# --- Issue #5: write() must persist a row without relying on RETURNING id -----
+
+
+def test_write_persists_row_via_core_insert(backend):
+    """write() must actually persist a row (not just avoid raising)."""
+    backend.write(SAMPLE_EVENT)
+    count = backend.query("SELECT COUNT(*) AS n FROM events").iloc[0]["n"]
+    assert count == 1
+
+
+def test_write_does_not_return_pk(backend):
+    """write() returns None; it must not depend on the generated PK."""
+    result = backend.write(SAMPLE_EVENT)
+    assert result is None
+    # The row is still persisted even though nothing reads the id back.
+    df = backend.query("SELECT id FROM events")
+    assert len(df) == 1
+
+
+def test_write_emits_no_returning_for_postgres_dialect():
+    """The compiled Core INSERT must not append RETURNING (breaks INSERT-only roles)."""
+    from sqlalchemy import insert
+    from sqlalchemy.dialects import postgresql
+
+    from streamlit_fyr.backends.models import Event
+
+    # Compile with the columns the runtime write path actually supplies. Without
+    # implicit_returning=False on the model, the psycopg2 dialect appends a
+    # RETURNING clause for the autoincrement PK, which breaks INSERT-only roles.
+    compiled = insert(Event).compile(
+        dialect=postgresql.dialect(), column_keys=list(SAMPLE_EVENT)
+    )
+    assert "RETURNING" not in str(compiled).upper()
+
+
+# --- Issue #7: PostgresBackend forwards pool kwargs to create_engine ----------
+
+
+def test_postgres_forwards_default_pool_kwargs(monkeypatch):
+    from streamlit_fyr.backends import postgres as pg_mod
+
+    monkeypatch.delenv("ST_FYR_CONNECTION_STRING", raising=False)
+    with patch.object(pg_mod, "create_engine", return_value=MagicMock()) as mk:
+        with patch.object(pg_mod.SQLAlchemyBackend, "__init__", return_value=None):
+            pg_mod.PostgresBackend("postgresql://host/db")
+    mk.assert_called_once_with(
+        "postgresql://host/db",
+        pool_size=5,
+        max_overflow=5,
+        pool_pre_ping=True,
+    )
+
+
+def test_postgres_forwards_overridden_pool_kwargs(monkeypatch):
+    from streamlit_fyr.backends import postgres as pg_mod
+
+    monkeypatch.delenv("ST_FYR_CONNECTION_STRING", raising=False)
+    with patch.object(pg_mod, "create_engine", return_value=MagicMock()) as mk:
+        with patch.object(pg_mod.SQLAlchemyBackend, "__init__", return_value=None):
+            pg_mod.PostgresBackend(
+                "postgresql://host/db",
+                pool_size=20,
+                max_overflow=10,
+                pool_pre_ping=False,
+            )
+    mk.assert_called_once_with(
+        "postgresql://host/db",
+        pool_size=20,
+        max_overflow=10,
+        pool_pre_ping=False,
+    )
+
+
+def test_postgres_forwards_extra_engine_kwargs(monkeypatch):
+    from streamlit_fyr.backends import postgres as pg_mod
+
+    monkeypatch.delenv("ST_FYR_CONNECTION_STRING", raising=False)
+    with patch.object(pg_mod, "create_engine", return_value=MagicMock()) as mk:
+        with patch.object(pg_mod.SQLAlchemyBackend, "__init__", return_value=None):
+            pg_mod.PostgresBackend("postgresql://host/db", pool_recycle=1800, echo=True)
+    _, kwargs = mk.call_args
+    assert kwargs["pool_recycle"] == 1800
+    assert kwargs["echo"] is True
+
+
+def test_postgres_no_connection_string_raises(monkeypatch):
+    from streamlit_fyr.backends import postgres as pg_mod
+
+    monkeypatch.delenv("ST_FYR_CONNECTION_STRING", raising=False)
+    with pytest.raises(ValueError, match="ST_FYR_CONNECTION_STRING"):
+        pg_mod.PostgresBackend()
