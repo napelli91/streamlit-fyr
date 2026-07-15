@@ -43,8 +43,14 @@ class Tracker:
         Args:
             page_name: Human-readable page identifier (e.g. "dashboard").
         """
+        # Streamlit reruns the script on every interaction, so emit a
+        # page_view only when the page actually changes within the session —
+        # otherwise every widget interaction would re-log a spurious view.
+        # Re-visiting a previously visited page changes _current_page again and
+        # so emits a fresh page_view.
+        if st.session_state.get("_current_page") != page_name:
+            self._write("page_view", {"page": page_name})
         st.session_state["_current_page"] = page_name
-        self._write("page_view", {"page": page_name})
 
     def identify(self, user_id: str) -> None:
         """Associate subsequent events with a known user identity.
