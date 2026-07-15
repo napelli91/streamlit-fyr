@@ -147,3 +147,25 @@ event from that point forward alongside `visitor_id`. Events fired before
 > Prefer an opaque internal ID over an email address or display name. If you do
 > store PII, ensure your database access controls and data retention policy
 > reflect that obligation.
+
+## Observing write failures
+
+By design, **telemetry failures never break the host app** — if a backend write
+fails, `Tracker` swallows the exception and continues. To avoid silently
+dropping events with no signal, the library logs a full warning on the first
+write failure per process (subsequent failures are logged at `debug`) via the
+`streamlit_fyr` logger.
+
+For a louder, actionable signal, pass an `on_write_error` callback. It is
+invoked with the exception whenever a write fails, so you can surface or alert
+on the failure without the library re-raising into your app:
+
+```python
+def alert(exc: Exception) -> None:
+    my_error_reporter.capture(exc)  # e.g. Sentry, a metric, a log
+
+tracker = Tracker(app_name="my_st_app", backend=backend, on_write_error=alert)
+```
+
+The callback must not raise; if it does, its exception is logged and suppressed
+so the guarantee that telemetry cannot break the host app still holds.
