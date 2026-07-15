@@ -119,6 +119,56 @@ PostgresBackend(
 )
 ```
 
+## Schema setup (provisioning the events table)
+
+Backends need an `events` table (plus its indexes) before they can write. Who
+creates it — and when — differs between local and production use:
+
+- **SQLite** (`SQLiteBackend`) defaults to `ensure_schema=True`: the table and
+  indexes are created on construction. Zero-config, matches the local/dev story.
+- **Postgres** (`PostgresBackend`) defaults to `ensure_schema=False`: apps do
+  **no** DDL at runtime. You provision the schema once, up front, with a
+  privileged role, then run the apps with an INSERT-only role.
+
+### Recommended multi-app pattern
+
+Run this **once** at deploy time with a role that can create tables/indexes:
+
+```python
+from streamlit_fyr import PostgresBackend
+
+backend = PostgresBackend(connection_string="postgresql+psycopg://admin:...@host/db")
+backend.ensure_schema()  # creates table + indexes, backfills user_id; idempotent
+```
+
+Then each app constructs its backend with an INSERT-only role and skips DDL
+entirely (this is the default, so no flag is needed):
+
+```python
+@st.cache_resource
+def get_backend():
+    return PostgresBackend(connection_string="postgresql+psycopg://app_writer:...@host/db")
+    # ensure_schema defaults to False — no DDL, safe for INSERT-only roles
+```
+
+`ensure_schema()` is idempotent: it creates the table if missing, backfills the
+`user_id` column on older tables, and adds any missing indexes. You can re-run
+it safely on every deploy.
+
+> [!IMPORTANT]
+> **Behavior change in 0.3.0 for Postgres users.** Previous versions ran
+> `create_all()` + migration on every construction. Now `PostgresBackend`
+> does no DDL by default — you must call `backend.ensure_schema()` once
+> (e.g. in a deploy step) before apps can write. If you prefer the old
+> behavior, pass `PostgresBackend(..., ensure_schema=True)` with a DDL-capable
+> role.
+
+> [!NOTE]
+> **Existing tables created before 0.3.0 have no indexes.** `create_all()` does
+> not add indexes to a table that already exists. Run `backend.ensure_schema()`
+> once to create the missing indexes (`ix_events_app_name_timestamp`,
+> `ix_events_user_id`, `ix_events_visitor_id`) on your existing table.
+
 ## Identifying authenticated users
 
 If your app has authentication, call `tracker.identify()` after login resolves
